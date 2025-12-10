@@ -5,6 +5,35 @@ from langchain.chat_models import init_chat_model
 from langchain_openai import ChatOpenAI
 from langchain_ibm import ChatWatsonx
 
+class ToolCallingAgent:
+    def __init__(self, llm):
+        self.llm_with_tools = llm.bind_tools(tools)
+        self.tool_map = tool_map
+
+    def run(self, query: str) -> str:
+        # Step 1: Initial user message
+        chat_history = [HumanMessage(content=query)]
+
+        # Step 2: LLM chooses tool
+        response = self.llm_with_tools.invoke(chat_history)
+        if not response.tool_calls:
+            return response.contet # Direct response, no tool needed
+        # Step 3: Handle first tool call
+        tool_call = response.tool_calls[0]
+        tool_name = tool_call["name"]
+        tool_args = tool_call["args"]
+        tool_call_id = tool_call["id"]
+
+        # Step 4: Call tool manually
+        tool_result = self.tool_map[tool_name].invoke(tool_args)
+
+        # Step 5: Send result back to LLM
+        tool_message = ToolMessage(content=str(tool_result), tool_call_id=tool_call_id)
+        chat_history.extend([response, tool_message])
+
+        # Step 6: Final LLM result
+        final_response = self.llm_with_tools.invoke(chat_history)
+        return final_response.content
 
 openai_llm = ChatOpenAI(
     model="gpt-4.1-nano",
@@ -49,37 +78,11 @@ tool_map = {
     "multiply": multiply
 }
 
-
 tools = [add, subtract, multiply]
-llm_with_tools = watsonx_llm.bind_tools(tools)
+my_agent = ToolCallingAgent(watsonx_llm)
 
-query = "What is 3 * 2?"
-chat_history = [HumanMessage(content=query)]
+print(my_agent.run("one plus 2"))
 
-response_1 = llm_with_tools.invoke(chat_history)
+print(my_agent.run("one - 2"))
 
-chat_history.append(response_1)
-
-print(type(response_1))
-print(response_1)
-
-tool_calls_1 = response_1.tool_calls
-
-tool_1_name = tool_calls_1[0]["name"]
-tool_1_args = tool_calls_1[0]["args"]
-tool_call_1_id = tool_calls_1[0]["id"]
-
-print(f'tool name:\n{tool_1_name}')
-print(f'tool args:\n{tool_1_args}')
-print(f'tool call ID:\n{tool_call_1_id}')
-
-tool_response = tool_map[tool_1_name].invoke(tool_1_args)
-tool_message = ToolMessage(content=tool_response, tool_call_id=tool_call_1_id)
-
-print(tool_message)
-
-chat_history.append(tool_message)
-
-answer = llm_with_tools.invoke(chat_history)
-print(type(answer))
-print(answer.content)
+print(my_agent.run("three times two"))
