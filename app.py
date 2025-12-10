@@ -13,7 +13,7 @@ openai_llm = ChatOpenAI(
 
 
 watsonx_llm = ChatWatsonx(
-    model_id = "ibm/granite-4-h-small",
+    model_id = "ibm/granite-3-3-8b-instruct",
     url = f"https://{config.WATSONX_REGION}.ml.cloud.ibm.com",
     project_id = config.WATSONX_PROJECT_ID,
     apikey = config.WATSONX_API_KEY,
@@ -49,17 +49,11 @@ tool_map = {
     "multiply": multiply
 }
 
-input_ = {
-    "a": 1,
-    "b": 2
-}
-
-tool_map["add"].invoke(input_)
 
 tools = [add, subtract, multiply]
 llm_with_tools = watsonx_llm.bind_tools(tools)
 
-query = "What is 3 + 2?"
+query = "What is 3 * 2?"
 chat_history = [HumanMessage(content=query)]
 
 response_1 = llm_with_tools.invoke(chat_history)
@@ -67,3 +61,25 @@ response_1 = llm_with_tools.invoke(chat_history)
 chat_history.append(response_1)
 
 print(type(response_1))
+print(response_1)
+
+tool_calls_1 = response_1.tool_calls
+
+tool_1_name = tool_calls_1[0]["name"]
+tool_1_args = tool_calls_1[0]["args"]
+tool_call_1_id = tool_calls_1[0]["id"]
+
+print(f'tool name:\n{tool_1_name}')
+print(f'tool args:\n{tool_1_args}')
+print(f'tool call ID:\n{tool_call_1_id}')
+
+tool_response = tool_map[tool_1_name].invoke(tool_1_args)
+tool_message = ToolMessage(content=tool_response, tool_call_id=tool_call_1_id)
+
+print(tool_message)
+
+chat_history.append(tool_message)
+
+answer = llm_with_tools.invoke(chat_history)
+print(type(answer))
+print(answer.content)
